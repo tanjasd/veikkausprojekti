@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Veikkausprojekti – Mini UI</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    input, button { padding:10px; }
+    button { cursor:pointer; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    pre { background:#f6f6f6; padding:12px; overflow:auto; }
+    .card { border:1px solid #ddd; border-radius:10px; padding:12px; margin:10px 0; }
+    .muted { color:#666; font-size: 14px; }
+        /* Mobiili: napit ja inputit allekkain, kortit selkeämmiksi */
+    @media (max-width: 600px) {
+      body { margin: 12px auto; padding: 0 10px; }
+      .row { flex-direction: column; align-items: stretch; gap: 10px; }
+      input, button { width: 100%; box-sizing: border-box; }
+      pre { font-size: 13px; }
+      .card { padding: 12px; }
+      .card { width: 100%; }
+    }
+    * { box-sizing: border-box; }
+      body { overflow-x: hidden; }
+      .card { max-width: 100%; }
+      #matches { max-width: 100%; }
+      #matches .card { overflow: hidden; }
+      pre { max-width: 100%; white-space: pre-wrap; word-break: break-word; }
+
+    /* Match-kortin sisäiset inputit (id="h_..." / "a_...") venyvät myös */
+    #matches input[type="number"] { width: 100% !important; }
+  input, button { width: 100%; }
+  button { display: block; }
+  .row { width: 100%; }
+
+      input, button {
+        line-height: 1.2;
+        min-height: 44px;
+        padding: 10px 12px;
+      }
+
+      input[type="number"], input[type="text"], input[type="password"] {
+        padding-top: 12px;
+        padding-bottom: 12px;
+      }
+
+  </style>
+</head>
+<body>
+  <h1>Veikkausprojekti – Mini UI</h1>
+
+  <div class="card">
+    <h3>1) Kirjautuminen</h3>
+    <div class="row">
+      <input id="email" placeholder="email" value="tanja@testi.com" />
+      <input id="password" placeholder="password" type="password" value="salasana123" />
+      <button onclick="login()">Kirjaudu</button>
+      <button onclick="logout()">Tyhjennä token</button>
+    </div>
+    <div class="muted">Token: <span id="tokenStatus">ei</span></div>
+  </div>
+
+  <div class="card">
+    <h3>2) Hae ottelut (tournamentId)</h3>
+    <div class="row">
+      <input id="tournamentId" type="number" value="1" />
+      <button onclick="loadMatches()">Hae ottelut</button>
+    </div>
+    <div id="matches"></div>
+  </div>
+
+  <div class="card">
+    <h3>3) Pistetilanne (tournamentId)</h3>
+    <div class="row">
+      <button onclick="loadLeaderboard()">Hae pistetilanne</button>
+      <button onclick="clearViews()">Tyhjennä näkymät</button>
+
+    </div>
+    <pre id="leaderboard"></pre>
+  </div>
+
+  <div class="card">
+    <h3>Logi</h3>
+    <pre id="log"></pre>
+  </div>
+
+<script>
+  const API = "http://localhost:3001";
+
+  function setLog(obj) {
+    document.getElementById("log").textContent =
+      typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+  }
+
+  function getToken() {
+    return localStorage.getItem("token");
+  }
+
+  function setToken(token) {
+    if (token) localStorage.setItem("token", token);
+    else localStorage.removeItem("token");
+    document.getElementById("tokenStatus").textContent = token ? "kyllä" : "ei";
+  }
+  async function loadPredictions(matchId) {
+  const token = getToken();
+  if (!token) return setLog("Kirjaudu ensin.");
+
+  const res = await fetch(`${API}/api/predictions?matchId=${matchId}`, {
+    headers: { "Authorization": `Bearer ${token}` }
+  });
+
+  const data = await res.json();
+  setLog(data);
+
+  const el = document.getElementById(`p_${matchId}`);
+  if (!res.ok) return (el.textContent = "Virhe haussa");
+  if (!data.length) return (el.textContent = "Ei veikkauksia tälle ottelulle.");
+
+  const m = (window._matches || []).find(x => x.id === matchId);
+
+  let header = "";
+  if (m && m.home_score != null && m.away_score != null) {
+    header = `Tulos: ${m.home_score}-${m.away_score}<br>`;
+  } else {
+    header = `Tulos: (puuttuu)<br>`;
+  }
+
+    const started = m && new Date() >= new Date(m.match_date);
+
+    const list = data.map(x => {
+      const t = new Date(x.created_at).toLocaleString("fi-FI");
+      const dis = started ? "disabled" : "";
+      const label = started ? "Poisto sulkeutunut" : "Poista";
+
+      return `• ${x.pred_home}-${x.pred_away} <span class="muted">(${t})</span>
+        <button ${dis} onclick="deletePrediction(${x.id}, ${matchId})">${label}</button>`;
+    }).join("<br>");
+
+
+
+  el.innerHTML = `<b>Omat veikkaukset:</b><br>${header}${list}`;
+}
+
+
+
+  setToken(getToken());
+
+  async function login() {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    const res = await fetch(`${API}/api/users/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+    setLog(data);
+
+    if (res.ok && data.token) setToken(data.token);
+  }
+
+  function logout() {
+    setToken(null);
+    setLog("Token tyhjennetty.");
+  }
+  async function loadLeaderboard() {
+  const tournamentId = Number(document.getElementById("tournamentId").value);
+
+  const res = await fetch(`${API}/api/leaderboard?tournamentId=${tournamentId}`);
+  const data = await res.json();
+
+  document.getElementById("leaderboard").textContent = JSON.stringify(data, null, 2);
+  setLog(data);
+}
+  function clearViews() {
+    document.getElementById("leaderboard").textContent = "";
+    setLog("");
+}
+
+
+  async function loadMatches() {
+    const token = getToken();
+    if (!token) return setLog("Kirjaudu ensin.");
+
+    const tournamentId = Number(document.getElementById("tournamentId").value);
+    const res = await fetch(`${API}/api/matches?tournamentId=${tournamentId}`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+
+    const data = await res.json();
+    window._matches = data;
+
+    setLog(data);
+
+    const container = document.getElementById("matches");
+    container.innerHTML = "";
+
+    if (!res.ok) return;
+
+    data.forEach(m => {
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <div><b>Match #${m.id}</b> — ${m.team_home} vs ${m.team_away}</div>
+        <div class="muted">${m.match_date || ""}</div>
+
+        <div class="row" style="margin-top:10px;">
+          <input type="number" min="0" placeholder="Koti" id="h_${m.id}" />
+          <input type="number" min="0" placeholder="Vieras" id="a_${m.id}" />
+          <button id="btn_send_${m.id}" onclick="sendPrediction(${m.id})">Lähetä veikkaus</button>
+          <button onclick="loadPredictions(${m.id})">Näytä omat veikkaukset</button>
+        </div>
+
+        <div class="muted" id="p_${m.id}" style="margin-top:10px;"></div>
+      `;
+      const start = new Date(m.match_date);
+      if (new Date() >= start) {
+        div.querySelector(`#btn_send_${m.id}`).disabled = true;
+        div.querySelector(`#btn_send_${m.id}`).textContent = "Veikkaus sulkeutunut";
+    }
+
+      container.appendChild(div);
+    });
+  }
+
+  async function sendPrediction(matchId) {
+    const token = getToken();
+    if (!token) return setLog("Kirjaudu ensin.");
+
+    const predHome = Number(document.getElementById(`h_${matchId}`).value);
+    const predAway = Number(document.getElementById(`a_${matchId}`).value);
+
+    const res = await fetch(`${API}/api/predictions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ matchId, predHome, predAway })
+    });
+
+    const data = await res.json();
+    setLog(data);
+  }
+  async function deletePrediction(predId, matchId) {
+  const token = getToken();
+  if (!token) return setLog("Kirjaudu ensin.");
+
+  const res = await fetch(`${API}/api/predictions/${predId}`, {
+    method: "DELETE",
+    headers: { "Authorization": `Bearer ${token}` }
+  });
+
+  const data = await res.json();
+  setLog(data);
+
+  if (res.ok) {
+    // päivitä lista
+    loadPredictions(matchId);
+  }
+}
+
+</script>
+</body>
+</html>
