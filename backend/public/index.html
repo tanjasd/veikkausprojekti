@@ -49,7 +49,7 @@
   </style>
 </head>
 <body>
-  <h1>Veikkausprojekti – Mini UI</h1>
+  <h1>Veikkausprojekti</h1>
 
   <div class="card">
     <h3>1) Kirjautuminen</h3>
@@ -57,7 +57,8 @@
       <input id="email" placeholder="email" value="tanja@testi.com" />
       <input id="password" placeholder="password" type="password" value="salasana123" />
       <button onclick="login()">Kirjaudu</button>
-      <button onclick="logout()">Tyhjennä token</button>
+      <button onclick="logout()">Kirjaudu ulos</button>
+      <button onclick="registerUser()">Rekisteröidy</button>
     </div>
     <div class="muted">Token: <span id="tokenStatus">ei</span></div>
   </div>
@@ -87,7 +88,7 @@
   </div>
 
 <script>
-  const API = "http://localhost:3001";
+  const API = window.location.origin;
 
   function setLog(obj) {
     document.getElementById("log").textContent =
@@ -162,7 +163,25 @@
 
     if (res.ok && data.token) setToken(data.token);
   }
+async function registerUser() {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
 
+  const name = email.includes("@") ? email.split("@")[0] : email;
+
+  const res = await fetch(`${API}/api/users/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, password })
+  });
+
+  const data = await res.json();
+  setLog(data);
+
+  if (res.ok) {
+    await login();
+  }
+}
   function logout() {
     setToken(null);
     setLog("Token tyhjennetty.");
@@ -227,25 +246,29 @@
     });
   }
 
-  async function sendPrediction(matchId) {
-    const token = getToken();
-    if (!token) return setLog("Kirjaudu ensin.");
+async function sendPrediction(matchId) {
+  const token = getToken();
+  if (!token) return setLog("Kirjaudu ensin.");
 
-    const predHome = Number(document.getElementById(`h_${matchId}`).value);
-    const predAway = Number(document.getElementById(`a_${matchId}`).value);
+  const predHome = Number(document.getElementById(`h_${matchId}`).value);
+  const predAway = Number(document.getElementById(`a_${matchId}`).value);
 
-    const res = await fetch(`${API}/api/predictions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify({ matchId, predHome, predAway })
-    });
+  const res = await fetch(`${API}/api/predictions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({ matchId, predHome, predAway })
+  });
 
-    const data = await res.json();
-    setLog(data);
+  const data = await res.json();
+  setLog(data);
+
+  if (res.ok) {
+    await loadPredictions(matchId);
   }
+}
   async function deletePrediction(predId, matchId) {
   const token = getToken();
   if (!token) return setLog("Kirjaudu ensin.");
