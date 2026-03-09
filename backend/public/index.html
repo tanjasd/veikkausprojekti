@@ -182,10 +182,16 @@ async function registerUser() {
     await login();
   }
 }
-  function logout() {
-    setToken(null);
-    setLog("Token tyhjennetty.");
-  }
+function logout() {
+  setToken(null);
+  setLog("Kirjauduttu ulos.");
+
+  const matches = document.getElementById("matches");
+  if (matches) matches.innerHTML = "";
+
+  const leaderboard = document.getElementById("leaderboard");
+  if (leaderboard) leaderboard.textContent = "";
+}
   async function loadLeaderboard() {
   const tournamentId = Number(document.getElementById("tournamentId").value);
 
