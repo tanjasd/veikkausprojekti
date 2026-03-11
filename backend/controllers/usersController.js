@@ -2,8 +2,6 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
-const JWT_SECRET = 'super_sala_avain';
-
 // Rekisteröinti
 exports.registerUser = async (req, res) => {
   try {

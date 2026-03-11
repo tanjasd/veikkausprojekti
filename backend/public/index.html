@@ -66,8 +66,8 @@
   <div class="card">
     <h3>2) Hae ottelut (tournamentId)</h3>
     <div class="row">
-      <input id="tournamentId" type="number" value="1" />
-      <button onclick="loadMatches()">Hae ottelut</button>
+<select id="matchDate" onchange="loadMatches()"></select>
+<button onclick="loadMatchDates()">Hae pelipäivät</button>
     </div>
     <div id="matches"></div>
   </div>
@@ -192,8 +192,42 @@ function logout() {
   const leaderboard = document.getElementById("leaderboard");
   if (leaderboard) leaderboard.textContent = "";
 }
-  async function loadLeaderboard() {
-  const tournamentId = Number(document.getElementById("tournamentId").value);
+async function loadMatchDates() {
+  const tournamentId = 1;
+
+  const res = await fetch(`${API}/api/match-dates?tournamentId=${tournamentId}`);
+  const data = await res.json();
+
+  setLog(data);
+
+  const select = document.getElementById("matchDate");
+  select.innerHTML = "";
+
+  if (!res.ok || !data.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Ei ottelupäiviä";
+    select.appendChild(option);
+
+    document.getElementById("matches").innerHTML = "";
+    return;
+  }
+
+  data.forEach(date => {
+    const option = document.createElement("option");
+    option.value = date;
+
+    const [year, month, day] = date.split("-");
+    option.textContent = `${Number(day)}.${Number(month)}.${year}`;
+
+    select.appendChild(option);
+  });
+
+  loadMatches();
+}
+
+async function loadLeaderboard() {
+  const tournamentId = 1;
 
   const res = await fetch(`${API}/api/leaderboard?tournamentId=${tournamentId}`);
   const data = await res.json();
@@ -207,51 +241,60 @@ function logout() {
 }
 
 
-  async function loadMatches() {
-    const token = getToken();
-    if (!token) return setLog("Kirjaudu ensin.");
+async function loadMatches() {
+  const tournamentId = 1;
+  const date = document.getElementById("matchDate").value;
 
-    const tournamentId = Number(document.getElementById("tournamentId").value);
-    const res = await fetch(`${API}/api/matches?tournamentId=${tournamentId}`, {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-
-    const data = await res.json();
-    window._matches = data;
-
-    setLog(data);
-
-    const container = document.getElementById("matches");
-    container.innerHTML = "";
-
-    if (!res.ok) return;
-
-    data.forEach(m => {
-      const div = document.createElement("div");
-      div.className = "card";
-      div.innerHTML = `
-        <div><b>Match #${m.id}</b> — ${m.team_home} vs ${m.team_away}</div>
-        <div class="muted">${m.match_date || ""}</div>
-
-        <div class="row" style="margin-top:10px;">
-          <input type="number" min="0" placeholder="Koti" id="h_${m.id}" />
-          <input type="number" min="0" placeholder="Vieras" id="a_${m.id}" />
-          <button id="btn_send_${m.id}" onclick="sendPrediction(${m.id})">Lähetä veikkaus</button>
-          <button onclick="loadPredictions(${m.id})">Näytä omat veikkaukset</button>
-        </div>
-
-        <div class="muted" id="p_${m.id}" style="margin-top:10px;"></div>
-      `;
-      const start = new Date(m.match_date);
-      if (new Date() >= start) {
-        div.querySelector(`#btn_send_${m.id}`).disabled = true;
-        div.querySelector(`#btn_send_${m.id}`).textContent = "Veikkaus sulkeutunut";
-    }
-
-      container.appendChild(div);
-    });
+  let url = `${API}/api/matches?tournamentId=${tournamentId}`;
+  if (date) {
+    url += `&date=${date}`;
   }
 
+  const token = getToken();
+  const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+
+  const res = await fetch(url, { headers });
+  const data = await res.json();
+  window._matches = data;
+
+  setLog(data);
+
+  const container = document.getElementById("matches");
+  container.innerHTML = "";
+
+  if (!res.ok) return;
+
+  if (!data.length) {
+    container.innerHTML = `<div class="muted">Ei otteluita valitulle päivälle.</div>`;
+    return;
+  }
+
+  data.forEach(m => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <div><b>Match #${m.id}</b> — ${m.team_home} vs ${m.team_away}</div>
+      <div class="muted">${m.match_date || ""}</div>
+
+      <div class="row" style="margin-top:10px;">
+        <input type="number" min="0" placeholder="Koti" id="h_${m.id}" />
+        <input type="number" min="0" placeholder="Vieras" id="a_${m.id}" />
+        <button id="btn_send_${m.id}" onclick="sendPrediction(${m.id})">Lähetä veikkaus</button>
+        <button onclick="loadPredictions(${m.id})">Näytä omat veikkaukset</button>
+      </div>
+
+      <div class="muted" id="p_${m.id}" style="margin-top:10px;"></div>
+    `;
+
+    const start = new Date(m.match_date);
+    if (new Date() >= start) {
+      div.querySelector(`#btn_send_${m.id}`).disabled = true;
+      div.querySelector(`#btn_send_${m.id}`).textContent = "Veikkaus sulkeutunut";
+    }
+
+    container.appendChild(div);
+  });
+}
 async function sendPrediction(matchId) {
   const token = getToken();
   if (!token) return setLog("Kirjaudu ensin.");
