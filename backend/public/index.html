@@ -76,8 +76,7 @@
     <h3>3) Pistetilanne (tournamentId)</h3>
     <div class="row">
       <button onclick="loadLeaderboard()">Hae pistetilanne</button>
-      <button onclick="clearViews()">Tyhjennä näkymät</button>
-
+    
     </div>
     <pre id="leaderboard"></pre>
   </div>
@@ -235,10 +234,7 @@ async function loadLeaderboard() {
   document.getElementById("leaderboard").textContent = JSON.stringify(data, null, 2);
   setLog(data);
 }
-  function clearViews() {
-    document.getElementById("leaderboard").textContent = "";
-    setLog("");
-}
+
 
 
 async function loadMatches() {
